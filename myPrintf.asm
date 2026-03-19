@@ -61,7 +61,7 @@ myPrintf:
                 cmp al, '%'
                 je .switchFormat
 
-                call putChar
+                mov byte [rsi + rdx], al
                 inc rdx
 
                 cmp rdx, BUFFER_SIZE
@@ -113,12 +113,19 @@ myPrintf:
 
             mov byte [rsi + rdx], al
             inc rdx
+
+            cmp rdx, BUFFER_SIZE
+            jne .continue
+            call .printBuffer
+
             ret
 
 
 .printHex:
                     mov rax, [rbp]
                     inc rbp
+
+                    xor r8, r8
 
                     mov rcx, 64d
 
@@ -134,17 +141,125 @@ myPrintf:
 
 printHexSymbol:
                     and bl, 00001111b
-                    add bl, '0'
+                    test bl, bl
+                    jz .isZero
+                    inc r8
+
+.isZero:            add bl, '0'
                     cmp bl, '9'
 
                     jbe .notLetter
 
                     add bl, 'A' - '0' + 1
 
+                    test r8, r8
+                    jz .end
+
 .notLetter:
                     mov byte [rsi + rdx], bl
                     inc rdx
 
+                    cmp rdx, BUFFER_SIZE
+                    jne .continue
+                    call .printBuffer
+
+.end:               ret
+
+.printBin:
+                    mov rax, [rbp]
+                    inc rbp
+
+                    xor r8, r8
+
+                    mov rcx, 64d
+
+.nextBinSymbol:
+                    mov rbx, rax
+                    shr rbx, rcx
+
+                    and bl, 00000001b
+                    test bl, bl
+                    jz .isZero
+                    inc r8
+
+.isZero:            add bl, '0'
+
+                    test r8, r8
+                    jz .skipLeadingZero
+
+                    mov byte [rsi + rdx], bl
+                    inc rdx
+
+                    cmp rdx, BUFFER_SIZE
+                    jne .continue
+                    call .printBuffer
+
+.skipLeadingZero:
+                    dec rcx
+                    test rcx, rcx
+                    jnz .nextBinSymbol
+
                     ret
 
-.printBin
+
+.printOct:
+                    mov rax, [rbp]
+                    inc rbp
+
+                    xor r8, r8
+
+                    mov rcx, 64d
+
+.nextOctSymbol:     mov rbx, rax
+                    shr rbx, rcx
+                    call printOctSymbol
+
+                    sub rcx, 3d
+                    test rcx, rcx
+                    jnz .nextOctSymbol
+
+                    ret
+
+printOctSymbol:
+                    and bl, 00000111b
+                    test bl, bl
+                    jz .isZero
+                    inc r8
+
+.isZero:            add bl, '0'
+
+                    test r8, r8
+                    jz .end
+
+                    mov byte [rsi + rdx], bl
+                    inc rdx
+
+                    cmp rdx, BUFFER_SIZE
+                    jne .continue
+                    call .printBuffer
+
+.end:               ret
+
+.printStr:
+                    mov rax, [rbp]
+                    inc rbp
+
+.nextStrChar:       lodsb
+                    test al, al
+                    jz .enpPrintStr
+
+                    mov byte [rsi + rdx], al
+                    inc rdx
+
+                    cmp rdx, BUFFER_SIZE
+                    jne .continue
+                    call .printBuffer
+
+                    jmp .nextStrChar
+
+.endPrintStr:       ret
+
+.printDec:
+
+
+
