@@ -14,334 +14,432 @@ jumpTable:
 
             dq printDec
 
-            times ('o' - 'd' - 1) dq .default
+            times ('o' - 'd' - 1) dq printDefault
 
             dq printOct
 
-            times ('s' - 'o' - 1) dq .default
+            times ('s' - 'o' - 1) dq printDefault
 
             dq printStr
 
-            times ('x' - 's' - 1) dq .default
+            times ('x' - 's' - 1) dq printDefault
 
             dq printHex
 
 section .text
 
-global _start
+global callMyPrintf
 
-_start:
+global myPrintf
 
 myPrintf:
-                push r9
-                push r8
-                push rcx
-                push rdx
-                push rsi
 
-                push rbx
-                mov rbx, rsp
-                add rbx, 8
+                        push rbx
+                        mov rbx, rsp
+                        add rbx, 8*2
 
-                push rbp
-                mov rbp, rsp
+                        push rbp
+                        mov rbp, rsp
 
-                cld
-                xor rcx, rcx        ;buffer counter
-                xor r10, r10        ;printed symbols counter
+                        cld
+                        xor r11, r11        ;buffer counter
+                        xor r10, r10        ;printed symbols counter
 
-                mov rsi, rdi
+                        mov rsi, rdi
 
-                sub rsp, BUFFER_SIZE
-                mov rdi, rsp
+                        sub rsp, BUFFER_SIZE
+                        mov rdi, rsp
 
 
-nextChar:       lodsb
-                test al, al
-                jz .enpPrintf
+nextChar:               lodsb
+                        test al, al
+                        jz .enpPrintf
 
-                cmp al, '%'
-                je .switchFormat
+                        cmp al, '%'
+                        je .switchFormat
 
-                stosb
-                inc rcx
+                        stosb
+                        inc r11
 
-                cmp rcx, BUFFER_SIZE
-                jne .continue
-                call printBuffer
+                        cmp r11, BUFFER_SIZE
+                        jne .continue
+                        call printBuffer
 
-.continue:      jmp nextChar
+.continue:              jmp nextChar
 
 .switchFormat:
-                lodsb
+                        lodsb
 
-                sub al, MIN_CASE
-                js .default
+                        sub al, MIN_CASE
+                        js printDefault
 
-                cmp al, (MAX_CASE - MIN_CASE)
-                ja .default
+                        cmp al, (MAX_CASE - MIN_CASE)
+                        ja printDefault
 
-                movzx rdx, al
-                jmp [jumpTable + rdx * 8]
+                        movzx rdx, al
+                        jmp [jumpTable + rdx * 8]
 
 .enpPrintf:
-                call printBuffer
-                mov rax, r10
+                        call printBuffer
+                        mov rax, r10
 
-                pop rbp
-                pop rbx
+                        add rsp, BUFFER_SIZE
+                        pop rbp
+                        pop rbx
 
-                pop rsi
-                pop rdx
-                pop rcx
-                pop r8
-                pop r9
-
-                ret
+                        ret
 
 
 printBuffer:
-            add r10, rcx
+                        push rsi
+                        push rcx
+                        add r10, r11
 
-            mov rax, 1
-            mov rdi, 1
+                        mov rax, 1
+                        mov rdi, 1
 
-            lea rsi, [rbp - BUFFER_SIZE]
-            mov rdx, rcx
-            syscall
+                        lea rsi, [rbp - BUFFER_SIZE]
+                        mov rdx, r11
+                        syscall
 
-            xor rcx, rcx
+                        xor r11, r11
 
-            lea rdi, [rbp - BUFFER_SIZE]
+                        lea rdi, [rbp - BUFFER_SIZE]
 
-            ret
+                        pop rcx
+                        pop rsi
+                        ret
 
 printChar:
-            mov rax, [rbx]
-            add rbx, 8
+                        mov rax, [rbx]
+                        add rbx, 8
+                        cmp rbx, r12
+                        jne .notSystemVStackArgument
+                        add rbx, 8 * 2
 
-            stosb
-            inc rcx
+.notSystemVStackArgument:
+                        stosb
+                        inc r11
 
-            cmp rcx, BUFFER_SIZE
-            jne .continue
-            call printBuffer
+                        cmp r11, BUFFER_SIZE
+                        jne .end
+                        call printBuffer
 
-            jmp nextChar
+.end:                   jmp nextChar
 
 
 printHex:
-                    mov r9, [rbx]
-                    add rbx, 8
+                        mov r9, [rbx]
+                        add rbx, 8
+                        cmp rbx, r12
+                        jne .notSystemVStackArgument
+                        add rbx, 8 * 2
 
-                    test r9, r9
-                    jnz .notZero
+.notSystemVStackArgument:
 
-                    mov al, '0'
-                    stosb
-                    inc rcx
+                        test r9, r9
+                        jnz .notZero
 
-                    cmp rcx, BUFFER_SIZE
-                    jne .end
-                    call printBuffer
-                    jmp .end
+                        mov al, '0'
+                        stosb
+                        inc r11
+
+                        cmp r11, BUFFER_SIZE
+                        jne .end
+                        call printBuffer
+                        jmp .end
 
 
-.notZero:           xor r8, r8
+.notZero:
+                        xor r8, r8
+                        mov cl, 60d
 
-                    mov rdx, 64d
+.nextHexSymbol:
+                        mov rax, r9
+                        shr rax, cl
+                        call printHexSymbol
 
-.nextHexSymbol:     sub rdx, 4d
-                    mov rax, r9
-                    shr rax, rdx
-                    call printHexSymbol
+                        sub cl, 4d
+                        jge .nextHexSymbol
 
-                    test rdx, rdx
-                    jnz .nextHexSymbol
-
-                    jmp nextChar
+.end:                   jmp nextChar
 
 printHexSymbol:
-                    and al, 00001111b
-                    test al, al
-                    jz .isZero
-                    inc r8
+                        and al, 00001111b
+                        test al, al
+                        jz .isZero
+                        inc r8
 
-.isZero:            add al, '0'
-                    cmp al, '9'
+.isZero:                test r8, r8
+                        jz .end
 
-                    jbe .notLetter
+                        add al, '0'
+                        cmp al, '9'
 
-                    add al, 'A' - '0' + 1
+                        jbe .notLetter
 
-                    test r8, r8
-                    jz .end
+                        add al, 'A' - ('9' + 1)
+
 
 .notLetter:
-                    stosb
-                    inc rcx
+                        stosb
+                        inc r11
 
-                    cmp rcx, BUFFER_SIZE
-                    jne .end
-                    call printBuffer
+                        cmp r11, BUFFER_SIZE
+                        jne .end
+                        call printBuffer
 
-.end:               ret
+.end:                   ret
 
 
 printBin:
-                    mov r9, [rbx]
-                    add rbx, 8
+                        mov r9, [rbx]
+                        add rbx, 8
+                        cmp rbx, r12
+                        jne .notSystemVStackArgument
+                        add rbx, 8 * 2
 
-                    test r9, r9
-                    jnz .notZero
+.notSystemVStackArgument:
 
-                    mov al, '0'
-                    stosb
-                    inc rcx
+                        test r9, r9
+                        jnz .notZero
 
-                    cmp rcx, BUFFER_SIZE
-                    jne .end
-                    call printBuffer
-                    jmp .end
+                        mov al, '0'
+                        stosb
+                        inc r11
+
+                        cmp r11, BUFFER_SIZE
+                        jne .end
+                        call printBuffer
+                        jmp .end
 
 
-.notZero:           xor r8, r8
+.notZero:               xor r8, r8
 
-                    mov rdx, 64d
+                        mov cl, 64d
 
 .nextBinSymbol:
-                    dec rdx
-                    mov rax, r9
-                    shr rax, rdx
+                        dec cl
+                        mov rax, r9
+                        shr rax, cl
 
-                    and al, 00000001b
-                    test al, al
-                    jz .isZero
-                    inc r8
+                        and al, 00000001b
+                        test al, al
+                        jz .isZero
+                        inc r8
 
-.isZero:            add al, '0'
+.isZero:                add al, '0'
 
-                    test r8, r8
-                    jz .skipLeadingZero
+                        test r8, r8
+                        jz .skipLeadingZero
 
-                    stosb
-                    inc rcx
+                        stosb
+                        inc r11
 
-                    cmp rcx, BUFFER_SIZE
-                    jne .skipLeadingZero
-                    call printBuffer
+                        cmp r11, BUFFER_SIZE
+                        jne .skipLeadingZero
+                        call printBuffer
 
 .skipLeadingZero:
-                    test rdx, rdx
-                    jnz .nextBinSymbol
+                        test cl, cl
+                        jnz .nextBinSymbol
 
-.end                jmp nextChar
+.end:                   jmp nextChar
 
 
 printOct:
-                    mov r9, [rbx]
-                    add rbx, 8
+                        mov r9, [rbx]
+                        add rbx, 8
+                        cmp rbx, r12
+                        jne .notSystemVStackArgument
+                        add rbx, 8 * 2
 
-                    test r9, r9
-                    jnz .notZero
+.notSystemVStackArgument:
 
-                    mov al, '0'
-                    stosb
-                    inc rcx
+                        test r9, r9
+                        jnz .notZero
 
-                    cmp rcx, BUFFER_SIZE
-                    jne .end
-                    call printBuffer
-                    jmp .end
+                        mov al, '0'
+                        stosb
+                        inc r11
 
-.notZero            xor r8, r8
+                        cmp r11, BUFFER_SIZE
+                        jne .end
+                        call printBuffer
+                        jmp .end
 
-                    mov rdx, 63d
+.notZero:               xor r8, r8
+
+                        mov cl, 63d
 
 .nextOctSymbol:
-                    mov rax, r9
-                    shr rax, rdx
-                    call printOctSymbol
+                        mov rax, r9
+                        shr rax, cl
+                        call printOctSymbol
 
-                    sub rdx, 3
-                    test rdx, rdx
-                    jge .nextOctSymbol
+                        sub cl, 3
+                        test cl, cl
+                        jge .nextOctSymbol
 
-                    nextChar
+.end:                   jmp nextChar
 
 printOctSymbol:
-                    and al, 00000111b
-                    test al, al
-                    jz .isZero
-                    inc r8
+                        and al, 00000111b
+                        test al, al
+                        jz .isZero
+                        inc r8
 
-.isZero:            add al, '0'
+.isZero:                add al, '0'
 
-                    test r8, r8
-                    jz .end
+                        test r8, r8
+                        jz .end
 
-                    stosb
-                    inc rcx
+                        stosb
+                        inc r11
 
-                    cmp rcx, BUFFER_SIZE
-                    jne .end
-                    call printBuffer
+                        cmp r11, BUFFER_SIZE
+                        jne .end
+                        call printBuffer
 
-.end:               ret
+.end:                   ret
 
 printStr:
 
-                    push rsi
-                    mov rsi, [rbx]
-                    add rbx, 8
+                        push rsi
+                        mov rsi, [rbx]
+                        add rbx, 8
+                        cmp rbx, r12
+                        jne .notSystemVStackArgument
+                        add rbx, 8 * 2
+
+.notSystemVStackArgument:
 
 .nextStrChar:
-                    lodsb
-                    test al, al
-                    jz .enpPrintStr
+                        lodsb
+                        test al, al
+                        jz .enpPrintStr
 
-                    stosb
-                    inc rcx
+                        stosb
+                        inc r11
 
-                    cmp rcx, BUFFER_SIZE
-                    jne .continue
-                    call printBuffer
+                        cmp r11, BUFFER_SIZE
+                        jne .nextStrChar
+                        call printBuffer
 
-                    jmp .nextStrChar
+                        jmp .nextStrChar
 
 .enpPrintStr:
-                    pop rsi
-                    jmp nextChar
+                        pop rsi
+                        jmp nextChar
 
 
 
-default:
-                    mov al, '%'
-                    stosb
-                    inc rcx
+printDefault:
+                        mov al, '%'
+                        stosb
+                        inc r11
 
-                    cmp rcx, BUFFER_SIZE
-                    jne .continue
-                    call printBuffer
+                        cmp r11, BUFFER_SIZE
+                        jne .continue
+                        call printBuffer
 
-.continue           mov al, [rsi - 1]
-                    stosb
-                    inc rcx
+.continue:              mov al, [rsi - 1]
+                        stosb
+                        inc r11
 
-                    cmp rcx, BUFFER_SIZE
-                    jne .end
-                    call printBuffer
+                        cmp r11, BUFFER_SIZE
+                        jne .end
+                        call printBuffer
 
-.end                jmp nextChar
+.end:                   jmp nextChar
 
 
 printDec:
+                        movsxd r9, [rbx]
+                        add rbx, 8
+                        cmp rbx, r12
+                        jne .notSystemVStackArgument
+                        add rbx, 8 * 2
+
+.notSystemVStackArgument:
+
+                        test r9, r9
+                        jnz .notZero
+
+                        mov al, '0'
+                        stosb
+                        inc r11
+
+                        cmp r11, BUFFER_SIZE
+                        jne .end
+                        call printBuffer
+                        jmp .end
+
+.notZero:
+                        test r9, r9
+                        jns .isPositive
+
+                        neg r9
+                        mov al, '-'
+                        stosb
+                        inc r11
+
+                        cmp r11, BUFFER_SIZE
+                        jne .isPositive
+                        call printBuffer
+
+.isPositive:
+                        mov rax, r9
+
+
+                        xor r8, r8          ;numCounter
+                        mov r9, 10          ;divider
+
+.nextNum:
+                        xor rdx, rdx
+                        div r9
+
+                        push rdx
+                        inc r8
+
+                        test rax, rax
+                        jnz .nextNum
+
+
+.printNum:
+                        pop rax
+                        add al, '0'
+                        stosb
+                        inc r11
+
+                        cmp r11, BUFFER_SIZE
+                        jne .continue
+                        call printBuffer
+
+.continue:              dec r8
+                        test r8, r8
+                        jnz .printNum
+
+.end:                   jmp nextChar
 
 
 
+callMyPrintf:
 
+    push r12
+    mov r12, rsp     ; save rsp to get systemV stack arguments
 
+    push r9
+    push r8
+    push rcx
+    push rdx
+    push rsi
 
+    call myPrintf
+
+    add rsp, 8*5
+    pop r12
+    ret
 
 
 
