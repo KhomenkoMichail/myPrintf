@@ -187,13 +187,13 @@ printBuffer:
                         mov rax, 1
                         mov rdi, 1
 
-                        lea rsi, [rbp - BUFFER_SIZE]
+                        lea rsi, [rbp - BUFFER_SIZE - 32]  ;FIxme
                         mov rdx, r11
                         syscall
 
                         xor r11, r11
 
-                        lea rdi, [rbp - BUFFER_SIZE]
+                        lea rdi, [rbp - BUFFER_SIZE - 32]
 
                         pop rcx
                         pop rsi
