@@ -38,7 +38,7 @@ global myPrintf
 ;Entry:
 ;Exit:      rax = number of printed characters
 ;Expected:
-;Destroyed: rax, rcx, rdx, rsi, rdi, r13, r9, r8, r11, r12
+;Destroyed: rax, rcx, rdx, rsi, rdi, r13, r9, r8, r11
 ;----------------------------------------------------------------------------------------------
 myPrintf:
 
@@ -137,7 +137,6 @@ printBuffer:
 ; Places an argument of type char into the buffer.
 ;Entry:             [rbx]  =  current printf argument
 ;                   rdi    =  pointer to the current free element in the buffer
-;                   r12    =  address of the systemV wrapper function return address
 ;                   r11    =  buffer size counter
 ;Exit:
 ;Expected:
@@ -146,11 +145,7 @@ printBuffer:
 printChar:
                         mov rax, [rbx]
                         add rbx, 8
-;                        cmp rbx, r12
-;                        jne .notSystemVStackArgument
-;                        add rbx, 8 * 2
 
-;.notSystemVStackArgument:
                         stosb
                         inc r11
 
@@ -164,7 +159,6 @@ printChar:
 ;----------------------------------------------------------------------------------------------
 ; Places the character representation of the Hex argument into the buffer.
 ;Entry:             [rbx]  =  current printf argument
-;                   r12    =  address of the systemV wrapper function return address
 ;                   rdi    =  pointer to the current free element in the buffer
 ;                   r11    =  buffer size counter
 ;Exit:
@@ -174,11 +168,6 @@ printChar:
 printHex:
                         mov r9, [rbx]
                         add rbx, 8
-;                        cmp rbx, r12
-;                        jne .notSystemVStackArgument
-;                        add rbx, 8 * 2
-
-;.notSystemVStackArgument:
 
                         test r9, r9
                         jnz .notZero
@@ -251,7 +240,6 @@ printHexSymbol:
 ;----------------------------------------------------------------------------------------------
 ; Places the character representation of the binary argument into the buffer.
 ;Entry:             [rbx]  =  current printf argument
-;                   r12    =  address of the systemV wrapper function return address
 ;                   rdi    =  pointer to the current free element in the buffer
 ;                   r11    =  buffer size counter
 ;Exit:
@@ -261,11 +249,6 @@ printHexSymbol:
 printBin:
                         mov r9, [rbx]
                         add rbx, 8
-;                        cmp rbx, r12
-;                        jne .notSystemVStackArgument
-;                        add rbx, 8 * 2
-;
-;.notSystemVStackArgument:
 
                         test r9, r9
                         jnz .notZero
@@ -316,7 +299,6 @@ printBin:
 ;----------------------------------------------------------------------------------------------
 ; Places the character representation of the octal argument into the buffer.
 ;Entry:             [rbx]  =  current printf argument
-;                   r12    =  address of the systemV wrapper function return address
 ;                   rdi    =  pointer to the current free element in the buffer
 ;                   r11    =  buffer size counter
 ;Exit:
@@ -326,12 +308,6 @@ printBin:
 printOct:
                         mov r9, [rbx]
                         add rbx, 8
-
-;                        cmp rbx, r12
-;                        jne .notSystemVStackArgument
-;                        add rbx, 8 * 2
-;
-;.notSystemVStackArgument:
 
                         test r9, r9
                         jnz .notZero
@@ -398,7 +374,6 @@ printOctSymbol:
 ; Copies the string argument to the buffer
 ;Entry:             [rbx]  =  string address
 ;                   r11    =  buffer size counter
-;                   r12    =  address of the systemV wrapper function return address
 ;                   rdi    =  pointer to the current free element in the buffer
 ;Exit:
 ;Expected:
@@ -409,11 +384,6 @@ printStr:
                         push rsi
                         mov rsi, [rbx]
                         add rbx, 8
-;                        cmp rbx, r12
-;                        jne .notSystemVStackArgument
-;                        add rbx, 8 * 2
-;
-;.notSystemVStackArgument:
 
 .nextStrChar:
                         lodsb
@@ -441,7 +411,6 @@ printStr:
 ;Entry:             rsi    =  pointer to the current format string element
 ;                   rdi    =  pointer to the current free element in the buffer
 ;                   r11    =  buffer size counter
-;                   r12    =  address of the systemV wrapper function return address
 ;Exit:
 ;Expected:
 ;Destroyed: rax, rdx, rdi, r8, r11
@@ -473,7 +442,6 @@ printDefault:
 ;Entry:             [rbx]  =  current printf argument
 ;                   rdi    =  pointer to the current free element in the buffer
 ;                   r11    =  buffer size counter
-;                   r12    =  address of the systemV wrapper function return address
 ;Exit:
 ;Expected:
 ;Destroyed: rax, rbx, rdx, rdi, r13, r9, r8, r11
@@ -481,11 +449,6 @@ printDefault:
 printDec:
                         movsxd r9, [rbx]
                         add rbx, 8
-;                        cmp rbx, r12
-;                        jne .notSystemVStackArgument
-;                        add rbx, 8 * 2
-
-;.notSystemVStackArgument:
 
                         test r9, r9
                         jnz .notZero
@@ -563,10 +526,7 @@ printDec:
 ;Destroyed: rax, rcx, rdx, rsi, rdi, r8, r9, r10, r11, r13
 ;----------------------------------------------------------------------------------------------
 callMyPrintf:
-                        ;pop rax           ; save callMyPrintf return address
                         pop r10
-                        ;push r12
-                        ;mov r12, rsp     ; save rsp to get systemV stack arguments
 
                         push r9
                         push r8
@@ -577,6 +537,7 @@ callMyPrintf:
 
 
                         call myPrintf
+
 
                         add rsp, 8*6
                         push r10
