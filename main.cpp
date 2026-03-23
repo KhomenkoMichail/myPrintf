@@ -3,9 +3,9 @@
 extern "C" int callMyPrintf(const char* format, ...);
 
 int main() {
-    int count = callMyPrintf("Hello %c!\nHex: %x\nDec: %d\nOct: %o\nBin: %b\nStr: %s\n",
-                         '!', 0xDEADBEEF, -123, 777, 255, "Ura Ura Ura!");
+    int count = callMyPrintf("Hello %c!\nHex: %x\nDec:%k%k %d\nOct: %o\nBin: %b\nStr: %s\n%d %s %x %d%%%c%b\n",
+                         '!', 0xDEADBEEF, -123, 777, 255, "Ura Ura Ura!", -1, "love", 3802, 100, 33, 126);
 
-    printf("myPrintf returned: %d\n", count);
+    printf("myPrintf  returned: %d\n", count);
     return 0;
 }
