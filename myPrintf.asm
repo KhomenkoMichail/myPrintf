@@ -14,7 +14,11 @@ jumpTable:
 
             dq printDec
 
-            times ('o' - 'd' - 1) dq printDefault
+            dq printDefault
+
+            dq printDouble
+
+            times ('o' - 'f' - 1) dq printDefault
 
             dq printOct
 
@@ -34,32 +38,90 @@ global myPrintf
 
 
 ;----------------------------------------------------------------------------------------------
+; Wrapper function for calling myPrintf in systemVABI
+;Entry:                 rdi            =  first argument (format string)
+;                       rsi            =  second argument
+;                       rdx            =  third argument
+;                       rcx            =  fourth argument
+;                       r8             =  fifth argument
+;                       r9             =  sixth argument
+;                       [rsp + 8]      =  seventh argument
+;                       [rsp + 8 * 2]  =  eighth argument
+;                       ...
+;Exit:
+;Expected:
+;Destroyed: rax, rcx, rdx, rsi, rdi, r8, r9, r10, r11, r12
+;----------------------------------------------------------------------------------------------
+callMyPrintf:
+                        pop r10
+
+                        push r9
+                        push r8
+                        push rcx
+                        push rdx
+                        push rsi
+                        push rdi
+
+                        sub rsp, 64
+
+                        movsd [rsp + 56], xmm7
+                        movsd [rsp + 48], xmm6
+                        movsd [rsp + 40], xmm5
+                        movsd [rsp + 32], xmm4
+                        movsd [rsp + 24], xmm3
+                        movsd [rsp + 16], xmm2
+                        movsd [rsp + 8],  xmm1
+                        movsd [rsp],      xmm0
+
+
+
+                        call myPrintf
+
+
+                        add rsp, 8*6 + 64
+                        push r10
+                        ret
+
+
+;----------------------------------------------------------------------------------------------
 ; My cDecl printf function, which supports specifiers %x, %d, %o, %b, %c and %s
 ;Entry:
 ;Exit:      rax = number of printed characters
 ;Expected:
-;Destroyed: rax, rcx, rdx, rsi, rdi, r13, r9, r8, r11
+;Destroyed: rax, rcx, rdx, rsi, rdi, r12, r9, r8, r11
 ;----------------------------------------------------------------------------------------------
 myPrintf:
-
-                        push rbx
-                        mov rbx, rsp
-                        add rbx, 8 * 3              ; rbx contains address of second printf argument
-
                         push rbp
                         mov rbp, rsp
 
+                        push rbx
+                        push r13
+                        push r14
+                        push r15
+
+                        lea rbx, [rbp + 8 * 2 + 64 + 8]
+                                                        ; rbx contains address of current
+                                                        ; printf integer argument or stack
+                                                        ; double argument
+
+                        lea r14, [rbp + 8 * 2]          ; r14 contains address of current
+                                                        ; double argument
+
+
                         cld
 
-                        xor r8, r8                ; printed symbols counter
+                        xor r8, r8                  ; printed symbols counter
 
                         xor r11, r11                ; buffer counter
 
                         xor r13, r13                ; printDec mode flag
                                                     ; (clean for printing %d,
-                                                    ;  set for printing integer part of %f)
+                                                    ; set for printing integer part of %f)
 
-                        mov rsi, [rsp + 8 * 3]
+                        xor r15, r15                ; processed double arguments counter
+
+
+                        mov rsi, [rbp + 8 * 2 + 64]
 
                         sub rsp, BUFFER_SIZE
                         mov rdi, rsp
@@ -97,10 +159,15 @@ nextChar:               lodsb
                         mov rax, r8
 
                         add rsp, BUFFER_SIZE
-                        pop rbp
+
+                        pop r15
+                        pop r14
+                        pop r13
                         pop rbx
 
+                        pop rbp
                         ret
+
 
 ;----------------------------------------------------------------------------------------------
 ; Prints the contents of the stack buffer to the console.
@@ -163,7 +230,7 @@ printChar:
 ;                   r11    =  buffer size counter
 ;Exit:
 ;Expected:
-;Destroyed: rax, rbx, rdx, rdi, r13, r9, r8, r11
+;Destroyed: rax, rbx, rdx, rdi, r12, r9, r8, r11
 ;----------------------------------------------------------------------------------------------
 printHex:
                         mov r9, [rbx]
@@ -183,7 +250,7 @@ printHex:
 
 
 .notZero:
-                        xor r13, r13
+                        xor r12, r12
                         mov cl, 60d
 
 .nextHexSymbol:
@@ -201,21 +268,21 @@ printHex:
 ; Сonverts the lower 4 bits of the al register to a hexadecimal character
 ; and places it in the buffer
 ;Entry:                 4 lower bits of al  =  current symbol of the hex number
-;                       r13  =  the number of non-zero characters of the number
+;                       r12  =  the number of non-zero characters of the number
 ;                              preceding the current one
 ;                       rdi    =  pointer to the current free element in the buffer
 ;                       r11    =  buffer size counter
 ;Exit:
 ;Expected:
-;Destroyed: rax, rdx, rdi, r13, r8, r11
+;Destroyed: rax, rdx, rdi, r12, r8, r11
 ;----------------------------------------------------------------------------------------------
 printHexSymbol:
                         and al, 00001111b
                         test al, al
                         jz .isZero
-                        inc r13
+                        inc r12
 
-.isZero:                test r13, r13
+.isZero:                test r12, r12
                         jz .end
 
                         add al, '0'
@@ -244,7 +311,7 @@ printHexSymbol:
 ;                   r11    =  buffer size counter
 ;Exit:
 ;Expected:
-;Destroyed: rax, rbx, rdx, rdi, r13, r9, r8, r11
+;Destroyed: rax, rbx, rdx, rdi, r12, r9, r8, r11
 ;----------------------------------------------------------------------------------------------
 printBin:
                         mov r9, [rbx]
@@ -263,7 +330,7 @@ printBin:
                         jmp .end
 
 
-.notZero:               xor r13, r13
+.notZero:               xor r12, r12
 
                         mov cl, 64d
 
@@ -275,11 +342,11 @@ printBin:
                         and al, 00000001b
                         test al, al
                         jz .isZero
-                        inc r13
+                        inc r12
 
 .isZero:                add al, '0'
 
-                        test r13, r13
+                        test r12, r12
                         jz .skipLeadingZero
 
                         stosb
@@ -303,7 +370,7 @@ printBin:
 ;                   r11    =  buffer size counter
 ;Exit:
 ;Expected:
-;Destroyed: rax, rbx, rdx, rdi, r13, r9, r8, r11
+;Destroyed: rax, rbx, rdx, rdi, r12, r9, r8, r11
 ;----------------------------------------------------------------------------------------------
 printOct:
                         mov r9, [rbx]
@@ -321,7 +388,7 @@ printOct:
                         call printBuffer
                         jmp .end
 
-.notZero:               xor r13, r13
+.notZero:               xor r12, r12
 
                         mov cl, 63d
 
@@ -341,23 +408,23 @@ printOct:
 ; Сonverts the lower 3 bits of the al register to a octal character
 ; and places it in the buffer
 ;Entry:                 3 lower bits of al  =  current symbol of the octal number
-;                       r13  =  the number of non-zero characters of the number
+;                       r12  =  the number of non-zero characters of the number
 ;                              preceding the current one
 ;                       rdi    =  pointer to the current free element in the buffer
 ;                       r11    =  buffer size counter
 ;Exit:
 ;Expected:
-;Destroyed: rax, rdx, rdi, r13, r8, r11
+;Destroyed: rax, rdx, rdi, r12, r8, r11
 ;----------------------------------------------------------------------------------------------
 printOctSymbol:
                         and al, 00000111b
                         test al, al
                         jz .isZero
-                        inc r13
+                        inc r12
 
 .isZero:                add al, '0'
 
-                        test r13, r13
+                        test r12, r12
                         jz .end
 
                         stosb
@@ -444,12 +511,16 @@ printDefault:
 ;                   r11    =  buffer size counter
 ;Exit:
 ;Expected:
-;Destroyed: rax, rbx, rdx, rdi, r13, r9, r8, r11
+;Destroyed: rax, rbx, rdx, rdi, r12, r9, r8, r11
 ;----------------------------------------------------------------------------------------------
 printDec:
+                        test r13, r13
+                        jnz .processDec
+
                         movsxd r9, [rbx]
                         add rbx, 8
 
+.processDec:
                         test r9, r9
                         jnz .notZero
 
@@ -479,15 +550,15 @@ printDec:
                         mov rax, r9
 
 
-                        xor r13, r13          ;numCounter
-                        mov r9, 10          ;divider
+                        xor r12, r12          ;numCounter
+                        mov r9, 10            ;divider
 
 .nextNum:
                         xor rdx, rdx
                         div r9
 
                         push rdx
-                        inc r13
+                        inc r12
 
                         test rax, rax
                         jnz .nextNum
@@ -503,48 +574,32 @@ printDec:
                         jne .continue
                         call printBuffer
 
-.continue:              dec r13
-                        test r13, r13
+.continue:              dec r12
+                        test r12, r12
                         jnz .printNum
+
+                        test r13, r13
+                        jnz returnInPrintDouble
 
 .end:                   jmp nextChar
 
 
-;----------------------------------------------------------------------------------------------
-; Wrapper function for calling myPrintf in systemVABI
-;Entry:                 rdi            =  first argument (format string)
-;                       rsi            =  second argument
-;                       rdx            =  third argument
-;                       rcx            =  fourth argument
-;                       r13             =  fifth argument
-;                       r9             =  sixth argument
-;                       [rsp + 8]      =  seventh argument
-;                       [rsp + 8 * 2]  =  eighth argument
-;                       ...
-;Exit:
-;Expected:
-;Destroyed: rax, rcx, rdx, rsi, rdi, r8, r9, r10, r11, r13
-;----------------------------------------------------------------------------------------------
-callMyPrintf:
-                        pop r10
-
-                        push r9
-                        push r8
-                        push rcx
-                        push rdx
-                        push rsi
-                        push rdi
 
 
-                        call myPrintf
+printDouble:
+                        cmp r15, 8
+                        je .getArgFromJointStack
 
+                        movq xmm0, [r14]
+                        add r14, 8
+                        inc r15
+                        jmp .processDouble
 
-                        add rsp, 8*6
-                        push r10
-                        ret
+.getArgFromJointStack:
+                        movq xmm0, [rbx]
+                        add rbx, 8
 
-
-printfFloat:
+.processDouble:
 
                         cvttsd2si r9, xmm0              ; r9 contains integer part of the xmm0
                         cvtsi2sd xmm1, r9               ; xmm1 contains integer part of the xmm0
@@ -553,8 +608,8 @@ printfFloat:
                         subsd xmm0, xmm1                ; xmm0 contains fractional part
 
                         inc r13
-                        call printDec
-                        xor r13, r13
+                        jmp printDec
+returnInPrintDouble:    xor r13, r13
 
                         mov al, '.'
                         stosb
