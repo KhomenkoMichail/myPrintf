@@ -38,27 +38,31 @@ global myPrintf
 ;Entry:
 ;Exit:      rax = number of printed characters
 ;Expected:
-;Destroyed: rax, rcx, rdx, rsi, rdi, r8, r9, r10, r11, r12
+;Destroyed: rax, rcx, rdx, rsi, rdi, r13, r9, r8, r11, r12
 ;----------------------------------------------------------------------------------------------
 myPrintf:
 
                         push rbx
                         mov rbx, rsp
-                        add rbx, 8 * 3      ; rbx contains address of second printf argument
+                        add rbx, 8 * 3              ; rbx contains address of second printf argument
 
                         push rbp
                         mov rbp, rsp
 
                         cld
-                        xor r11, r11        ; buffer counter
-                        xor r10, r10        ; printed symbols counter
 
-                        ;mov rsi, rdi
+                        xor r8, r8                ; printed symbols counter
+
+                        xor r11, r11                ; buffer counter
+
+                        xor r13, r13                ; printDec mode flag
+                                                    ; (clean for printing %d,
+                                                    ;  set for printing integer part of %f)
+
                         mov rsi, [rsp + 8 * 3]
 
                         sub rsp, BUFFER_SIZE
                         mov rdi, rsp
-
 
 nextChar:               lodsb
                         test al, al
@@ -90,7 +94,7 @@ nextChar:               lodsb
 
 .enpPrintf:
                         call printBuffer
-                        mov rax, r10
+                        mov rax, r8
 
                         add rsp, BUFFER_SIZE
                         pop rbp
@@ -101,17 +105,17 @@ nextChar:               lodsb
 ;----------------------------------------------------------------------------------------------
 ; Prints the contents of the stack buffer to the console.
 ;Entry:         rbp  =  address of the end of the buffer
-;               r10  =  printed characters counter
+;               r8  =  printed characters counter
 ;               r11  =  number of characters in the buffer
 ;
 ;Exit:
 ;Expected:
-;Destroyed: rax, rdx, rdi, r10, r11
+;Destroyed: rax, rdx, rdi, r8, r11
 ;----------------------------------------------------------------------------------------------
 printBuffer:
                         push rsi
                         push rcx
-                        add r10, r11
+                        add r8, r11
 
                         mov rax, 1
                         mov rdi, 1
@@ -137,16 +141,16 @@ printBuffer:
 ;                   r11    =  buffer size counter
 ;Exit:
 ;Expected:
-;Destroyed: rax, rbx, rdx, rdi, r10, r11
+;Destroyed: rax, rbx, rdx, rdi, r8, r11
 ;----------------------------------------------------------------------------------------------
 printChar:
                         mov rax, [rbx]
                         add rbx, 8
-                        cmp rbx, r12
-                        jne .notSystemVStackArgument
-                        add rbx, 8 * 2
+;                        cmp rbx, r12
+;                        jne .notSystemVStackArgument
+;                        add rbx, 8 * 2
 
-.notSystemVStackArgument:
+;.notSystemVStackArgument:
                         stosb
                         inc r11
 
@@ -165,16 +169,16 @@ printChar:
 ;                   r11    =  buffer size counter
 ;Exit:
 ;Expected:
-;Destroyed: rax, rbx, rdx, rdi, r8, r9, r10, r11
+;Destroyed: rax, rbx, rdx, rdi, r13, r9, r8, r11
 ;----------------------------------------------------------------------------------------------
 printHex:
                         mov r9, [rbx]
                         add rbx, 8
-                        cmp rbx, r12
-                        jne .notSystemVStackArgument
-                        add rbx, 8 * 2
+;                        cmp rbx, r12
+;                        jne .notSystemVStackArgument
+;                        add rbx, 8 * 2
 
-.notSystemVStackArgument:
+;.notSystemVStackArgument:
 
                         test r9, r9
                         jnz .notZero
@@ -190,7 +194,7 @@ printHex:
 
 
 .notZero:
-                        xor r8, r8
+                        xor r13, r13
                         mov cl, 60d
 
 .nextHexSymbol:
@@ -208,21 +212,21 @@ printHex:
 ; Сonverts the lower 4 bits of the al register to a hexadecimal character
 ; and places it in the buffer
 ;Entry:                 4 lower bits of al  =  current symbol of the hex number
-;                       r8  =  the number of non-zero characters of the number
+;                       r13  =  the number of non-zero characters of the number
 ;                              preceding the current one
 ;                       rdi    =  pointer to the current free element in the buffer
 ;                       r11    =  buffer size counter
 ;Exit:
 ;Expected:
-;Destroyed: rax, rdx, rdi, r8, r10, r11
+;Destroyed: rax, rdx, rdi, r13, r8, r11
 ;----------------------------------------------------------------------------------------------
 printHexSymbol:
                         and al, 00001111b
                         test al, al
                         jz .isZero
-                        inc r8
+                        inc r13
 
-.isZero:                test r8, r8
+.isZero:                test r13, r13
                         jz .end
 
                         add al, '0'
@@ -252,16 +256,16 @@ printHexSymbol:
 ;                   r11    =  buffer size counter
 ;Exit:
 ;Expected:
-;Destroyed: rax, rbx, rdx, rdi, r8, r9, r10, r11
+;Destroyed: rax, rbx, rdx, rdi, r13, r9, r8, r11
 ;----------------------------------------------------------------------------------------------
 printBin:
                         mov r9, [rbx]
                         add rbx, 8
-                        cmp rbx, r12
-                        jne .notSystemVStackArgument
-                        add rbx, 8 * 2
-
-.notSystemVStackArgument:
+;                        cmp rbx, r12
+;                        jne .notSystemVStackArgument
+;                        add rbx, 8 * 2
+;
+;.notSystemVStackArgument:
 
                         test r9, r9
                         jnz .notZero
@@ -276,7 +280,7 @@ printBin:
                         jmp .end
 
 
-.notZero:               xor r8, r8
+.notZero:               xor r13, r13
 
                         mov cl, 64d
 
@@ -288,11 +292,11 @@ printBin:
                         and al, 00000001b
                         test al, al
                         jz .isZero
-                        inc r8
+                        inc r13
 
 .isZero:                add al, '0'
 
-                        test r8, r8
+                        test r13, r13
                         jz .skipLeadingZero
 
                         stosb
@@ -317,16 +321,17 @@ printBin:
 ;                   r11    =  buffer size counter
 ;Exit:
 ;Expected:
-;Destroyed: rax, rbx, rdx, rdi, r8, r9, r10, r11
+;Destroyed: rax, rbx, rdx, rdi, r13, r9, r8, r11
 ;----------------------------------------------------------------------------------------------
 printOct:
                         mov r9, [rbx]
                         add rbx, 8
-                        cmp rbx, r12
-                        jne .notSystemVStackArgument
-                        add rbx, 8 * 2
 
-.notSystemVStackArgument:
+;                        cmp rbx, r12
+;                        jne .notSystemVStackArgument
+;                        add rbx, 8 * 2
+;
+;.notSystemVStackArgument:
 
                         test r9, r9
                         jnz .notZero
@@ -340,7 +345,7 @@ printOct:
                         call printBuffer
                         jmp .end
 
-.notZero:               xor r8, r8
+.notZero:               xor r13, r13
 
                         mov cl, 63d
 
@@ -360,23 +365,23 @@ printOct:
 ; Сonverts the lower 3 bits of the al register to a octal character
 ; and places it in the buffer
 ;Entry:                 3 lower bits of al  =  current symbol of the octal number
-;                       r8  =  the number of non-zero characters of the number
+;                       r13  =  the number of non-zero characters of the number
 ;                              preceding the current one
 ;                       rdi    =  pointer to the current free element in the buffer
 ;                       r11    =  buffer size counter
 ;Exit:
 ;Expected:
-;Destroyed: rax, rdx, rdi, r8, r10, r11
+;Destroyed: rax, rdx, rdi, r13, r8, r11
 ;----------------------------------------------------------------------------------------------
 printOctSymbol:
                         and al, 00000111b
                         test al, al
                         jz .isZero
-                        inc r8
+                        inc r13
 
 .isZero:                add al, '0'
 
-                        test r8, r8
+                        test r13, r13
                         jz .end
 
                         stosb
@@ -397,18 +402,18 @@ printOctSymbol:
 ;                   rdi    =  pointer to the current free element in the buffer
 ;Exit:
 ;Expected:
-;Destroyed: rax, rbx, rdx, rdi, r10, r11
+;Destroyed: rax, rbx, rdx, rdi, r8, r11
 ;----------------------------------------------------------------------------------------------
 printStr:
 
                         push rsi
                         mov rsi, [rbx]
                         add rbx, 8
-                        cmp rbx, r12
-                        jne .notSystemVStackArgument
-                        add rbx, 8 * 2
-
-.notSystemVStackArgument:
+;                        cmp rbx, r12
+;                        jne .notSystemVStackArgument
+;                        add rbx, 8 * 2
+;
+;.notSystemVStackArgument:
 
 .nextStrChar:
                         lodsb
@@ -439,7 +444,7 @@ printStr:
 ;                   r12    =  address of the systemV wrapper function return address
 ;Exit:
 ;Expected:
-;Destroyed: rax, rdx, rdi, r10, r11
+;Destroyed: rax, rdx, rdi, r8, r11
 ;----------------------------------------------------------------------------------------------
 printDefault:
                         mov al, '%'
@@ -471,16 +476,16 @@ printDefault:
 ;                   r12    =  address of the systemV wrapper function return address
 ;Exit:
 ;Expected:
-;Destroyed: rax, rbx, rdx, rdi, r8, r9, r10, r11
+;Destroyed: rax, rbx, rdx, rdi, r13, r9, r8, r11
 ;----------------------------------------------------------------------------------------------
 printDec:
                         movsxd r9, [rbx]
                         add rbx, 8
-                        cmp rbx, r12
-                        jne .notSystemVStackArgument
-                        add rbx, 8 * 2
+;                        cmp rbx, r12
+;                        jne .notSystemVStackArgument
+;                        add rbx, 8 * 2
 
-.notSystemVStackArgument:
+;.notSystemVStackArgument:
 
                         test r9, r9
                         jnz .notZero
@@ -511,7 +516,7 @@ printDec:
                         mov rax, r9
 
 
-                        xor r8, r8          ;numCounter
+                        xor r13, r13          ;numCounter
                         mov r9, 10          ;divider
 
 .nextNum:
@@ -519,7 +524,7 @@ printDec:
                         div r9
 
                         push rdx
-                        inc r8
+                        inc r13
 
                         test rax, rax
                         jnz .nextNum
@@ -535,8 +540,8 @@ printDec:
                         jne .continue
                         call printBuffer
 
-.continue:              dec r8
-                        test r8, r8
+.continue:              dec r13
+                        test r13, r13
                         jnz .printNum
 
 .end:                   jmp nextChar
@@ -548,58 +553,91 @@ printDec:
 ;                       rsi            =  second argument
 ;                       rdx            =  third argument
 ;                       rcx            =  fourth argument
-;                       r8             =  fifth argument
+;                       r13             =  fifth argument
 ;                       r9             =  sixth argument
 ;                       [rsp + 8]      =  seventh argument
 ;                       [rsp + 8 * 2]  =  eighth argument
 ;                       ...
 ;Exit:
 ;Expected:
-;Destroyed: rax, rcx, rdx, rsi, rdi, r8, r9, r10, r11
+;Destroyed: rax, rcx, rdx, rsi, rdi, r8, r9, r10, r11, r13
 ;----------------------------------------------------------------------------------------------
 callMyPrintf:
+                        ;pop rax           ; save callMyPrintf return address
+                        pop r10
+                        ;push r12
+                        ;mov r12, rsp     ; save rsp to get systemV stack arguments
 
-    push r12
-    mov r12, rsp     ; save rsp to get systemV stack arguments
+                        push r9
+                        push r8
+                        push rcx
+                        push rdx
+                        push rsi
+                        push rdi
 
-    push r9
-    push r8
-    push rcx
-    push rdx
-    push rsi
-    push rdi
 
-    call myPrintf
+                        call myPrintf
 
-    add rsp, 8*6
-    pop r12
-    ret
+                        add rsp, 8*6
+                        push r10
+                        ret
 
-;printfFloat:
-;
-;
-;            cvttsd2si r9, xmm0
-;            cvtsi2sd xmm1, r9
-;
-;            subsd xmm0, xmm1
-;
-;
-;
-;            mov r9, rax
-;            call
-;
-;
-;           mov al, '.'
-;            stosb
-;            inc r12
-;
-;            mov rax, 1000000
-;            cvtsi2sd xmm1, rax
-;            mulsd xmm0, xmm1
-;            cvttsd2si rax, xmm0
-;
-;
-;            mov rcx, 6
-;            call
-;
-;            jmp nextChar
+
+printfFloat:
+
+                        cvttsd2si r9, xmm0              ; r9 contains integer part of the xmm0
+                        cvtsi2sd xmm1, r9               ; xmm1 contains integer part of the xmm0
+
+
+                        subsd xmm0, xmm1                ; xmm0 contains fractional part
+
+                        inc r13
+                        call printDec
+                        xor r13, r13
+
+                        mov al, '.'
+                        stosb
+                        inc r11
+                        cmp r11, BUFFER_SIZE
+                        jne .continue
+                        call printBuffer
+.continue:
+
+                        mov rax, 1000000
+                        cvtsi2sd xmm1, rax
+                        mulsd xmm0, xmm1
+                        cvttsd2si rax, xmm0             ; rax contains fractional part of double
+                                                        ; multiplied by 1000000
+
+
+                        call printFractionalPart
+
+                        jmp nextChar
+
+
+
+printFractionalPart:
+                        mov r9, 10          ;divider
+
+                        mov rcx, 6
+.nextNum:
+                        xor rdx, rdx
+                        div r9
+                        push rdx
+
+                        loop .nextNum
+
+                        mov rcx, 6
+.printNum:
+                        pop rax
+                        add al, '0'
+                        stosb
+                        inc r11
+
+                        cmp r11, BUFFER_SIZE
+                        jne .continue
+                        call printBuffer
+
+.continue:
+                        loop .printNum
+                        ret
