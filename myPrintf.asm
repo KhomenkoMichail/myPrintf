@@ -1,3 +1,5 @@
+DEFAULT REL
+
 section .rodata
 
 MIN_CASE         EQU 'b'
@@ -8,27 +10,27 @@ BUFFER_MAX_SIZE      EQU 512d
 jumpTable:
             align 8
 
-            dq printBin
+            dd printBin - jumpTable
 
-            dq printChar
+            dd printChar - jumpTable
 
-            dq printDec
+            dd printDec - jumpTable
 
-            dq printDefault
+            dd printDefault - jumpTable
 
-            dq printDouble
+            dd printDouble - jumpTable
 
-            times ('o' - 'f' - 1) dq printDefault
+            times ('o' - 'f' - 1) dd printDefault - jumpTable
 
-            dq printOct
+            dd printOct - jumpTable
 
-            times ('s' - 'o' - 1) dq printDefault
+            times ('s' - 'o' - 1) dd printDefault - jumpTable
 
-            dq printStr
+            dd printStr - jumpTable
 
-            times ('x' - 's' - 1) dq printDefault
+            times ('x' - 's' - 1) dd printDefault - jumpTable
 
-            dq printHex
+            dd printHex - jumpTable
 
 section .text
 
@@ -146,14 +148,17 @@ nextFormatStringChar:
 .switchFormat:
                         lodsb
 
-                        sub al, MIN_CASE                    ; al = al - 'b'
+                        sub al, MIN_CASE                    ; al = curChar - 'b'
                         js printDefault
 
                         cmp al, (MAX_CASE - MIN_CASE)
                         ja printDefault
 
-                        movzx rdx, al
-                        jmp [jumpTable + rdx * 8]
+                        movzx rdx, al                       ; rdx = curChar - 'b'
+                        lea r9, [jumpTable]
+                        movsxd r12, dword [r9 + rdx * 4]
+                        add r9, r12
+                        jmp r9
 
 .enpPrintf:
                         call printBuffer
