@@ -1,0 +1,71 @@
+[33mcommit 70294df8fdde4f29b28a29bdd4f76796c4cdd879[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: KhomenkoMichail <khomenko.michail@gmail.com.com>
+Date:   Wed Mar 25 21:08:08 2026 +0300
+
+    nan inf
+
+[33mcommit 795605de04d162d7e101b086d1edf3c4e91d48ab[m
+Author: KhomenkoMichail <khomenko.michail@gmail.com.com>
+Date:   Tue Mar 24 22:50:51 2026 +0300
+
+    with ptes))
+
+[33mcommit 3cc7435c8fb5a1e8518b69d81d6afdcc1e5ade30[m
+Author: KhomenkoMichail <khomenko.michail@gmail.com.com>
+Date:   Tue Mar 24 17:06:49 2026 +0300
+
+    good wersion
+
+[33mcommit 55799998c9336bffacb26cc35c2161f5a0471135[m
+Author: KhomenkoMichail <khomenko.michail@gmail.com.com>
+Date:   Mon Mar 23 23:42:47 2026 +0300
+
+    working %f
+
+[33mcommit a902f1300f765e798a3dbd82b75116db82a951a0[m
+Author: KhomenkoMichail <khomenko.michail@gmail.com.com>
+Date:   Mon Mar 23 23:38:29 2026 +0300
+
+    float needs debugging
+
+[33mcommit f399976632d02b01e6e44d5c4de807355bfa7918[m
+Author: KhomenkoMichail <khomenko.michail@gmail.com.com>
+Date:   Mon Mar 23 21:49:57 2026 +0300
+
+    before r12 remove
+
+[33mcommit 24276d367aeae5c8db766119c1e2e1799de2805a[m
+Author: KhomenkoMichail <khomenko.michail@gmail.com.com>
+Date:   Mon Mar 23 21:46:15 2026 +0300
+
+    before r12 remove
+
+[33mcommit 1438764fcba72a924f6664895b4206a2b29543cb[m
+Author: KhomenkoMichail <khomenko.michail@gmail.com.com>
+Date:   Mon Mar 23 18:19:24 2026 +0300
+
+    added comments
+
+[33mcommit d37545b61dbd9ae2adc884584d8fd8df5ff547a4[m
+Author: KhomenkoMichail <khomenko.michail@gmail.com.com>
+Date:   Sun Mar 22 19:41:00 2026 +0300
+
+    working version with 6%
+
+[33mcommit 98681bed6b63d6d79230c294212bd86c0f10dc2c[m
+Author: KhomenkoMichail <khomenko.michail@gmail.com.com>
+Date:   Sun Mar 22 13:04:03 2026 +0300
+
+    fixtd errors
+
+[33mcommit 813d6ab40e471b5bd752f71b7a81b67a80c29794[m
+Author: KhomenkoMichail <khomenko.michail@gmail.com.com>
+Date:   Thu Mar 19 23:03:07 2026 +0300
+
+    %c, %b, %o, %x, %s not compil
+
+[33mcommit 57d8d68dc823924714484636faafdd5e01f661f0[m
+Author: KhomenkoMichail <khomenko.michail@gmail.com.com>
+Date:   Thu Mar 19 21:50:11 2026 +0300
+
+    printHex

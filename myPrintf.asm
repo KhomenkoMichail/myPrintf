@@ -1,14 +1,38 @@
+%macro PUT_CHAR 1
+    mov al, %1
+    stosb
+    inc r11
+    cmp r11, BUFFER_MAX_SIZE
+    jne %%skip
+    call printBuffer
+%%skip:
+%endmacro
+
 DEFAULT REL
+extern printf
 
-section .rodata
-
-MIN_CASE         EQU 'b'
-MAX_CASE         EQU 'x'
+MIN_CASE             EQU 'b'
+MAX_CASE             EQU 'x'
 
 BUFFER_MAX_SIZE      EQU 512d
 
-jumpTable:
+MANTIS_MASK          EQU 0xFFFFFFFFFFFFF
+
+section .rodata
+
+align 16
+
+notSignMask     dq 0x7FFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF
+
+number                  db "0123456789abcdef"
+
+numberSystemMask        db 0x00, 0x01, 0x03, 0x07, 0x0F
+
+formatString    db "%d %s %x %d%%%c%b", 10, 0
+strArg          db "love", 0
+
             align 8
+jumpTable:
 
             dd printBin - jumpTable
 
@@ -80,6 +104,22 @@ callMyPrintf:
 
 
                         add rsp, 8*6 + 64
+
+
+                        push r10
+                        lea rdi, [formatString]
+                        mov rsi, -1
+                        lea rdx, [strArg]
+                        mov rcx, 3802
+                        mov r8, 100
+                        mov r9, 33
+                        push 126
+
+                        mov al, 0
+                        call printf wrt ..plt
+                        add rsp, 8
+                        pop r10
+
                         push r10                            ; push callMyPrintf return address
                         ret                                 ; in stack
 
@@ -136,14 +176,9 @@ nextFormatStringChar:
                         cmp al, '%'
                         je .switchFormat
 
-                        stosb
-                        inc r11                             ; bufferCounter++
+                        PUT_CHAR al
 
-                        cmp r11, BUFFER_MAX_SIZE
-                        jne .continue
-                        call printBuffer
-
-.continue:              jmp nextFormatStringChar
+                        jmp nextFormatStringChar
 
 .switchFormat:
                         lodsb
@@ -222,236 +257,94 @@ printChar:
                         mov rax, [rbx]                          ; take argument from the stack
                         add rbx, 8                              ; inc arg address
 
-                        stosb
-                        inc r11
+                        PUT_CHAR al
 
-                        cmp r11, BUFFER_MAX_SIZE
-                        jne .end
-                        call printBuffer
-
-.end:                   jmp nextFormatStringChar
+                        jmp nextFormatStringChar
 
 
-;----------------------------------------------------------------------------------------------
-; Places the character representation of the Hex argument into the buffer.
-;Entry:             [rbx]  =  current printf argument
-;                   rdi    =  pointer to the current free element in the buffer
-;                   r11    =  buffer size counter
-;Exit:
-;Expected:
-;Destroyed: rax, rbx, rdx, rdi, r12, r9, r8, r11
-;----------------------------------------------------------------------------------------------
-printHex:
-                        mov r9, [rbx]                            ; take argument from the stack
-                        add rbx, 8                               ; inc argument address
 
-                        test r9, r9
-                        jnz .notZero                             ; if (arg == 0)
-
-                        mov al, '0'
-                        stosb
-                        inc r11
-
-                        cmp r11, BUFFER_MAX_SIZE
-                        jne .end
-                        call printBuffer
-                        jmp .end
-
-
-.notZero:
-                        xor r12, r12
-                        mov cl, 60d                             ; cl contains number of bits to
-                                                                ; shift in current iteration
-
-.nextHexSymbol:
-                        mov rax, r9
-                        shr rax, cl
-                        call printHexSymbol
-
-                        sub cl, 4d                              ; process 4 bits in each iterarion
-                        jge .nextHexSymbol
-
-.end:                   jmp nextFormatStringChar
-
-
-;----------------------------------------------------------------------------------------------
-; Сonverts the lower 4 bits of the al register to a hexadecimal character
-; and places it in the buffer
-;Entry:                 4 lower bits of al  =  current symbol of the hex number
-;                       r12  =  the number of non-zero characters of the number
-;                              preceding the current one
-;                       rdi    =  pointer to the current free element in the buffer
-;                       r11    =  buffer size counter
-;Exit:
-;Expected:
-;Destroyed: rax, rdx, rdi, r12, r8, r11
-;----------------------------------------------------------------------------------------------
-printHexSymbol:
-                        and al, 00001111b
-                        test al, al
-                        jz .isZero
-                        inc r12
-
-.isZero:                test r12, r12                       ; if simbol is a leading zero
-                        jz .end                             ; do not print it
-
-                        add al, '0'
-                        cmp al, '9'
-
-                        jbe .notLetter
-
-                        add al, 'A' - ('9' + 1)             ; add offset in ASCII table
-
-
-.notLetter:
-                        stosb
-                        inc r11                             ; bufferSize++
-
-                        cmp r11, BUFFER_MAX_SIZE
-                        jne .end
-                        call printBuffer
-
-.end:                   ret
-
-
-;----------------------------------------------------------------------------------------------
-; Places the character representation of the binary argument into the buffer.
-;Entry:             [rbx]  =  current printf argument
-;                   rdi    =  pointer to the current free element in the buffer
-;                   r11    =  buffer size counter
-;Exit:
-;Expected:
-;Destroyed: rax, rbx, rdx, rdi, r12, r9, r8, r11
-;----------------------------------------------------------------------------------------------
-printBin:
+printPowerOfTwo:
                         mov r9, [rbx]                       ; take argument from the stack
                         add rbx, 8                          ; inc argument address
 
                         test r9, r9
-                        jnz .notZero
+                        jnz .notZero                        ; if (arg == 0)
 
-                        mov al, '0'
-                        stosb
-                        inc r11
-
-                        cmp r11, BUFFER_MAX_SIZE
-                        jne .end
-                        call printBuffer
+                        PUT_CHAR '0'
                         jmp .end
 
 
 .notZero:               xor r12, r12                        ; r12 is a non-zero
                                                             ; characters counter
 
-                        mov cl, 64d                         ; cl contains number of bits to
+                        mov rcx, 64d                        ; cl contains number of bits to
                                                             ; shift in current iteration
 
-.nextBinSymbol:
-                        dec cl                              ; process 1 bit in each iteration
+                        cmp rdx, 3
+                        jne .nextSymbol
+                        add rcx, 2                          ; to divide by three in oct system
+
+
+.nextSymbol:
+                        sub rcx, rdx
                         mov rax, r9
                         shr rax, cl
 
-                        and al, 00000001b
+                        lea rsi, [numberSystemMask]
+                        and al, [rsi + rdx]
+
                         test al, al
                         jz .isZero
                         inc r12
 
-.isZero:                add al, '0'
+.isZero:                ;add al, '0'
+
 
                         test r12, r12                       ; if symbol is a leading zero
-                        jz .skipLeadingZero                 ; do no t print it
+                        jz .skipLeadingZero                 ; do not print it
 
-                        stosb
-                        inc r11                             ; bufferSize++
 
-                        cmp r11, BUFFER_MAX_SIZE
-                        jne .skipLeadingZero
-                        call printBuffer
+                        lea rsi, [number]
+                        movsx rax, al
+                        mov al, [rsi + rax]
+                        ;mov al, [number + rax]
 
+                        PUT_CHAR al
 .skipLeadingZero:
                         test cl, cl
-                        jnz .nextBinSymbol
-
-.end:                   jmp nextFormatStringChar
-
-
-;----------------------------------------------------------------------------------------------
-; Places the character representation of the octal argument into the buffer.
-;Entry:             [rbx]  =  current printf argument
-;                   rdi    =  pointer to the current free element in the buffer
-;                   r11    =  buffer size counter
-;Exit:
-;Expected:
-;Destroyed: rax, rbx, rdx, rdi, r12, r9, r8, r11
-;----------------------------------------------------------------------------------------------
-printOct:
-                        mov r9, [rbx]                       ; take argument from the stack
-                        add rbx, 8                          ; inc argument address
-
-                        test r9, r9
-                        jnz .notZero
-
-                        mov al, '0'
-                        stosb
-                        inc r11
-
-                        cmp r11, BUFFER_MAX_SIZE
-                        jne .end
-                        call printBuffer
-                        jmp .end
-
-
-.notZero:               xor r12, r12                        ; r12 is a non-zero
-                                                            ; characters counter
-
-                        mov cl, 63d                         ; cl contains number of bits to
-                                                            ; shift in current iteration
-
-.nextOctSymbol:
-                        mov rax, r9
-                        shr rax, cl
-                        call printOctSymbol
-
-                        sub cl, 3                           ; processes 3 bits in each iteration
-                        test cl, cl
-                        jge .nextOctSymbol
-
-.end:                   jmp nextFormatStringChar
-
-
-;----------------------------------------------------------------------------------------------
-; Сonverts the lower 3 bits of the al register to a octal character
-; and places it in the buffer
-;Entry:                 3 lower bits of al  =  current symbol of the octal number
-;                       r12  =  the number of non-zero characters of the number
-;                              preceding the current one
-;                       rdi    =  pointer to the current free element in the buffer
-;                       r11    =  buffer size counter
-;Exit:
-;Expected:
-;Destroyed: rax, rdx, rdi, r12, r8, r11
-;----------------------------------------------------------------------------------------------
-printOctSymbol:
-                        and al, 00000111b
-                        test al, al
-                        jz .isZero
-                        inc r12
-
-.isZero:                add al, '0'
-
-                        test r12, r12                       ; if symbol is a leading zero do not
-                        jz .end                             ; print it
-
-                        stosb
-                        inc r11
-
-                        cmp r11, BUFFER_MAX_SIZE
-                        jne .end
-                        call printBuffer
+                        jg .nextSymbol
 
 .end:                   ret
 
 
+printHex:
+                        mov rdx, 4
+
+                        push rsi
+                        call printPowerOfTwo
+                        pop rsi
+
+                        jmp nextFormatStringChar
+
+
+printOct:
+                        mov rdx, 3
+
+                        push rsi
+                        call printPowerOfTwo
+                        pop rsi
+
+                        jmp nextFormatStringChar
+
+
+printBin:
+                        mov rdx, 1
+
+                        push rsi
+                        call printPowerOfTwo
+                        pop rsi
+
+                        jmp nextFormatStringChar
 ;----------------------------------------------------------------------------------------------
 ; Copies the string argument to the buffer
 ;Entry:             [rbx]  =  string address
@@ -473,13 +366,7 @@ printStr:
                         test al, al                         ; cmp al, '\0'
                         jz .enpPrintStr
 
-                        stosb
-                        inc r11                             ; bufferSize++
-
-                        cmp r11, BUFFER_MAX_SIZE
-                        jne .nextStrChar
-                        call printBuffer
-
+                        PUT_CHAR al
                         jmp .nextStrChar
 
 .enpPrintStr:
@@ -499,24 +386,13 @@ printStr:
 ;Destroyed: rax, rdx, rdi, r8, r11
 ;----------------------------------------------------------------------------------------------
 printDefault:
-                        mov al, '%'
-                        stosb
-                        inc r11
+                        PUT_CHAR '%'
 
-                        cmp r11, BUFFER_MAX_SIZE
-                        jne .continue
-                        call printBuffer
-
-.continue:              mov al, [rsi - 1]                   ; take char after '%'
+                        mov al, [rsi - 1]                   ; take char after '%'
                         cmp al, '%'                         ; if '%' print only one (already done)
                         je .end
 
-                        stosb
-                        inc r11
-
-                        cmp r11, BUFFER_MAX_SIZE
-                        jne .end
-                        call printBuffer
+                        PUT_CHAR al
 .end:                   jmp nextFormatStringChar
 
 
@@ -542,13 +418,7 @@ printDec:
                         test r9, r9
                         jnz .notZero
 
-                        mov al, '0'
-                        stosb
-                        inc r11                             ; bufferSize++
-
-                        cmp r11, BUFFER_MAX_SIZE
-                        jne .end
-                        call printBuffer
+                        PUT_CHAR '0'
                         jmp .end
 
 .notZero:
@@ -556,13 +426,7 @@ printDec:
                         jns .isPositive
 
                         neg r9
-                        mov al, '-'
-                        stosb
-                        inc r11                             ; bufferSize++
-
-                        cmp r11, BUFFER_MAX_SIZE
-                        jne .isPositive
-                        call printBuffer
+                        PUT_CHAR '-'
 
 .isPositive:
                         mov rax, r9
@@ -585,14 +449,9 @@ printDec:
 .printNum:
                         pop rax                             ; pop remainder
                         add al, '0'                         ; num to ASCII
-                        stosb
-                        inc r11                             ; bufferSize++
+                        PUT_CHAR al
 
-                        cmp r11, BUFFER_MAX_SIZE
-                        jne .continue
-                        call printBuffer
-
-.continue:              dec r12                             ; numCounter--
+                        dec r12                             ; numCounter--
                         test r12, r12
                         jnz .printNum
 
@@ -617,16 +476,23 @@ printDouble:
                         cmp r15, 8                          ; if all 8 xmm regs argument are used
                         je .getArgFromJointStack            ; take them from the joint stack
 
-                        movq xmm0, [r14]                    ; r14 = xmm arguments stack pointer
+                        movq xmm0, [r14]
+                        mov rax, [r14]                      ; r14 = xmm arguments stack pointer
                         add r14, 8
                         inc r15
                         jmp .processDouble
 
 .getArgFromJointStack:
-                        movq xmm0, [rbx]                    ; rbx = joint arguments stack pointer
+                        movq xmm0, [rbx]
+                        mov rax, [rbx]                      ; rbx = joint arguments stack pointer
                         add rbx, 8
 
 .processDouble:
+                        mov r9, rax
+                        shr r9, 52
+                        and r9, 0x7FF                       ; r9 contains exponent of the num
+                        cmp r9, 0x7FF
+                        je special
 
                         cvttsd2si r9, xmm0                  ; r9 contains integer part of the xmm0
                         cvtsi2sd xmm1, r9                   ; xmm1 contains integer part of the xmm0
@@ -636,10 +502,7 @@ printDouble:
 
                         test r9, r9
                         jns .notNegative
-
-                        xorpd xmm1, xmm1
-                        subsd xmm1, xmm0                    ; xmm1 = 0 - xmm0
-                        movapd xmm0, xmm1
+                        andpd xmm0, [notSignMask]
 
 .notNegative:
 
@@ -647,13 +510,7 @@ printDouble:
                         jmp printDec
 returnInPrintDouble:    xor r13, r13                        ; clean %f mode printDec flag
 
-                        mov al, '.'
-                        stosb
-                        inc r11                             ; bufferSize++
-                        cmp r11, BUFFER_MAX_SIZE
-                        jne .continue
-                        call printBuffer
-.continue:
+                        PUT_CHAR '.'
 
                         mov rax, 1000000
                         cvtsi2sd xmm1, rax
@@ -666,7 +523,31 @@ returnInPrintDouble:    xor r13, r13                        ; clean %f mode prin
 
 
                         call printFractionalPart
+                        jmp printDoubleEnd
 
+special:
+                        mov r9, rax
+                        mov rcx, MANTIS_MASK
+                        and r9, rcx                         ; r9 contains mantis of the num
+                        test r9, r9
+                        jnz .printNan
+
+                        test rax, rax
+                        jns .printInf
+                        PUT_CHAR '-'
+
+.printInf:
+                        PUT_CHAR 'i'
+                        PUT_CHAR 'n'
+                        PUT_CHAR 'f'
+                        jmp printDoubleEnd
+
+.printNan:
+                        PUT_CHAR 'n'
+                        PUT_CHAR 'a'
+                        PUT_CHAR 'n'
+
+printDoubleEnd:
                         jmp nextFormatStringChar
 
 
@@ -694,13 +575,8 @@ printFractionalPart:
 .printNum:
                         pop rax                             ; pop remainder
                         add al, '0'                         ; to ASCII
-                        stosb
-                        inc r11                             ; bufferSize++
+                        PUT_CHAR al
 
-                        cmp r11, BUFFER_MAX_SIZE
-                        jne .continue
-                        call printBuffer
 
-.continue:
                         loop .printNum
                         ret
