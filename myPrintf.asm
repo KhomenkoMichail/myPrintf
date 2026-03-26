@@ -31,30 +31,31 @@ numberSystemMask        db 0x00, 0x01, 0x03, 0x07, 0x0F
 formatString    db "%d %s %x %d%%%c%b", 10, 0
 strArg          db "love", 0
 
+section .data
             align 8
 jumpTable:
 
-            dq printBin - jumpTable
+            dq printBin
 
-            dq printChar - jumpTable
+            dq printChar
 
-            dq printDec - jumpTable
+            dq printDec
 
-            dq printDefault - jumpTable
+            dq printDefault
 
-            dq printDouble - jumpTable
+            dq printDouble
 
-            times ('o' - 'f' - 1) dq printDefault - jumpTable
+            times ('o' - 'f' - 1) dq printDefault
 
-            dq printOct - jumpTable
+            dq printOct
 
-            times ('s' - 'o' - 1) dq printDefault - jumpTable
+            times ('s' - 'o' - 1) dq printDefault
 
-            dq printStr - jumpTable
+            dq printStr
 
-            times ('x' - 's' - 1) dq printDefault - jumpTable
+            times ('x' - 's' - 1) dq printDefault
 
-            dq printHex - jumpTable
+            dq printHex
 
 section .text
 
@@ -190,10 +191,10 @@ nextFormatStringChar:
                         ja printDefault
 
                         movzx rdx, al                       ; rdx = curChar - 'b'
+
+
                         lea r9, [jumpTable]
-                        movsxd r12, dword [r9 + rdx * 8]
-                        add r9, r12
-                        jmp r9
+                        jmp [r9 + rdx * 8]
 
 .enpPrintf:
                         call printBuffer
