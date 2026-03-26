@@ -34,27 +34,27 @@ strArg          db "love", 0
             align 8
 jumpTable:
 
-            dd printBin - jumpTable
+            dq printBin - jumpTable
 
-            dd printChar - jumpTable
+            dq printChar - jumpTable
 
-            dd printDec - jumpTable
+            dq printDec - jumpTable
 
-            dd printDefault - jumpTable
+            dq printDefault - jumpTable
 
-            dd printDouble - jumpTable
+            dq printDouble - jumpTable
 
-            times ('o' - 'f' - 1) dd printDefault - jumpTable
+            times ('o' - 'f' - 1) dq printDefault - jumpTable
 
-            dd printOct - jumpTable
+            dq printOct - jumpTable
 
-            times ('s' - 'o' - 1) dd printDefault - jumpTable
+            times ('s' - 'o' - 1) dq printDefault - jumpTable
 
-            dd printStr - jumpTable
+            dq printStr - jumpTable
 
-            times ('x' - 's' - 1) dd printDefault - jumpTable
+            times ('x' - 's' - 1) dq printDefault - jumpTable
 
-            dd printHex - jumpTable
+            dq printHex - jumpTable
 
 section .text
 
@@ -191,7 +191,7 @@ nextFormatStringChar:
 
                         movzx rdx, al                       ; rdx = curChar - 'b'
                         lea r9, [jumpTable]
-                        movsxd r12, dword [r9 + rdx * 4]
+                        movsxd r12, dword [r9 + rdx * 8]
                         add r9, r12
                         jmp r9
 
@@ -262,7 +262,17 @@ printChar:
                         jmp nextFormatStringChar
 
 
-
+;----------------------------------------------------------------------------------------------
+; Places the character representation of the argument
+; of power of two number system into the buffer.
+;Entry:             [rbx]  =  current printf argument
+;                   rdx    =  power of two of the current number system
+;                   rdi    =  pointer to the current free element in the buffer
+;                   r11    =  buffer size counter
+;Exit:
+;Expected:
+;Destroyed: rax, rbx, rdx, rdi, r12, r9, r8, r11
+;----------------------------------------------------------------------------------------------
 printPowerOfTwo:
                         mov r9, [rbx]                       ; take argument from the stack
                         add rbx, 8                          ; inc argument address
@@ -297,8 +307,7 @@ printPowerOfTwo:
                         jz .isZero
                         inc r12
 
-.isZero:                ;add al, '0'
-
+.isZero:
 
                         test r12, r12                       ; if symbol is a leading zero
                         jz .skipLeadingZero                 ; do not print it
@@ -307,7 +316,6 @@ printPowerOfTwo:
                         lea rsi, [number]
                         movsx rax, al
                         mov al, [rsi + rax]
-                        ;mov al, [number + rax]
 
                         PUT_CHAR al
 .skipLeadingZero:
@@ -317,6 +325,16 @@ printPowerOfTwo:
 .end:                   ret
 
 
+;----------------------------------------------------------------------------------------------
+; Places the character representation of the Hex argument into the buffer
+; (by calling printPowerOfTwo).
+;Entry:             [rbx]  =  current printf argument
+;                   rdi    =  pointer to the current free element in the buffer
+;                   r11    =  buffer size counter
+;Exit:
+;Expected:
+;Destroyed: rax, rbx, rdx, rdi, r12, r9, r8, r11
+;----------------------------------------------------------------------------------------------
 printHex:
                         mov rdx, 4
 
@@ -327,6 +345,16 @@ printHex:
                         jmp nextFormatStringChar
 
 
+;----------------------------------------------------------------------------------------------
+; Places the character representation of the octal argument into the buffer.
+; (by calling printPowerOfTwo).
+;Entry:             [rbx]  =  current printf argument
+;                   rdi    =  pointer to the current free element in the buffer
+;                   r11    =  buffer size counter
+;Exit:
+;Expected:
+;Destroyed: rax, rbx, rdx, rdi, r12, r9, r8, r11
+;----------------------------------------------------------------------------------------------
 printOct:
                         mov rdx, 3
 
@@ -337,6 +365,16 @@ printOct:
                         jmp nextFormatStringChar
 
 
+;----------------------------------------------------------------------------------------------
+; Places the character representation of the binary argument into the buffer.
+; (by calling printPowerOfTwo).
+;Entry:             [rbx]  =  current printf argument
+;                   rdi    =  pointer to the current free element in the buffer
+;                   r11    =  buffer size counter
+;Exit:
+;Expected:
+;Destroyed: rax, rbx, rdx, rdi, r12, r9, r8, r11
+;----------------------------------------------------------------------------------------------
 printBin:
                         mov rdx, 1
 
@@ -345,6 +383,8 @@ printBin:
                         pop rsi
 
                         jmp nextFormatStringChar
+
+
 ;----------------------------------------------------------------------------------------------
 ; Copies the string argument to the buffer
 ;Entry:             [rbx]  =  string address
