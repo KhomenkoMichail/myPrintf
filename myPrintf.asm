@@ -9,7 +9,10 @@
 %endmacro
 
 DEFAULT REL
+
 extern printf
+
+extern printHardDouble
 
 MIN_CASE             EQU 'b'
 MAX_CASE             EQU 'x'
@@ -22,7 +25,7 @@ section .rodata
 
 align 16
 
-notSignMask     dq 0x7FFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF
+notSignMask             dq 0x7FFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF
 
 number                  db "0123456789abcdef"
 
@@ -77,10 +80,10 @@ global myPrintf
 ;                       ...
 ;Exit:
 ;Expected:
-;Destroyed: rax, rcx, rdx, rsi, rdi, r8, r9, r10, r11, r12
+;Destroyed: rax, rcx, rdx, rsi, rdi, r8, r9, r11, r12
 ;----------------------------------------------------------------------------------------------
 callMyPrintf:
-                        pop r10                             ; save callMyPrintf return address
+                        pop rbx
 
                         push r9
                         push r8
@@ -90,7 +93,6 @@ callMyPrintf:
                         push rdi
 
                         sub rsp, 64
-
                         movsd [rsp + 56], xmm7
                         movsd [rsp + 48], xmm6
                         movsd [rsp + 40], xmm5
@@ -100,30 +102,32 @@ callMyPrintf:
                         movsd [rsp + 8],  xmm1
                         movsd [rsp],      xmm0
 
-
                         call myPrintf
 
+                        movsd xmm0, [rsp]
+                        movsd xmm1, [rsp + 8]
+                        movsd xmm2, [rsp + 16]
+                        movsd xmm3, [rsp + 24]
+                        movsd xmm4, [rsp + 32]
+                        movsd xmm5, [rsp + 40]
+                        movsd xmm6, [rsp + 48]
+                        movsd xmm7, [rsp + 56]
+                        add rsp, 64
 
-                        add rsp, 8*6 + 64
+                        pop rdi
+                        pop rsi
+                        pop rdx
+                        pop rcx
+                        pop r8
+                        pop r9
 
 
-                        push r10
-                        lea rdi, [formatString]
-                        mov rsi, -1
-                        lea rdx, [strArg]
-                        mov rcx, 3802
-                        mov r8, 100
-                        mov r9, 33
-                        push 126
+                        mov al, 8
 
-                        mov al, 0
                         call printf wrt ..plt
-                        add rsp, 8
-                        pop r10
 
-                        push r10                            ; push callMyPrintf return address
-                        ret                                 ; in stack
-
+                        push rbx
+                        ret
 
 ;----------------------------------------------------------------------------------------------
 ; My cDecl printf function, which supports specifiers %x, %d, %o, %b, %c and %s
@@ -466,6 +470,9 @@ printDec:
                         test r9, r9
                         jns .isPositive
 
+                        test r13, r13
+                        jns .isPositive
+
                         neg r9
                         PUT_CHAR '-'
 
@@ -496,10 +503,11 @@ printDec:
                         test r12, r12
                         jnz .printNum
 
+.end:
                         test r13, r13                       ; if (set %f mode flag)
                         jnz returnInPrintDouble             ; return to returnInPrintDouble
 
-.end:                   jmp nextFormatStringChar
+                        jmp nextFormatStringChar
 
 
 ;----------------------------------------------------------------------------------------------
@@ -532,18 +540,29 @@ printDouble:
                         mov r9, rax
                         shr r9, 52
                         and r9, 0x7FF                       ; r9 contains exponent of the num
+
                         cmp r9, 0x7FF
                         je special
+
+                        cmp r9, 1075
+                        ja printHard
+
+                        cmp r9, 1010
+                        jb printHard
+
+                        bt rax, 63
+                        jnc .isPositive
+
+                        PUT_CHAR '-'
+                        andpd xmm0, [notSignMask]
+
+.isPositive:
 
                         cvttsd2si r9, xmm0                  ; r9 contains integer part of the xmm0
                         cvtsi2sd xmm1, r9                   ; xmm1 contains integer part of the xmm0
 
 
                         subsd xmm0, xmm1                    ; xmm0 contains fractional part
-
-                        test r9, r9
-                        jns .notNegative
-                        andpd xmm0, [notSignMask]
 
 .notNegative:
 
@@ -564,6 +583,44 @@ returnInPrintDouble:    xor r13, r13                        ; clean %f mode prin
 
 
                         call printFractionalPart
+                        jmp printDoubleEnd
+
+printHard:
+                        push rsi
+                        push rdi
+
+                        sub rsp, 512
+                        mov rdi, rsp
+
+                        mov rsi, 0x8000000000000000
+                        and rsi, rax
+
+                        mov rdx, rax
+                        mov rcx, MANTIS_MASK
+                        and rdx, rcx                         ; rdx contains mantis of the num
+
+                        mov rcx, r9
+
+                        sub rsp, 8
+                        push r11
+                        call printHardDouble
+                        pop r11
+                        add rsp, 8
+
+                        mov r12, rsp
+
+                        mov rdi, [rsp + 512]
+
+                        mov rcx, rax
+
+.printBuf:
+                        mov al, [r12]
+                        inc r12
+                        PUT_CHAR al
+                        loop .printBuf
+
+                        add rsp, 512 + 8
+                        pop rsi
                         jmp printDoubleEnd
 
 special:
